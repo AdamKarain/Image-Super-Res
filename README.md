@@ -1,5 +1,7 @@
 # Image Super-Resolution (Diffusion-Based)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AdamKarain/Image-Super-Res/blob/main/notebooks/colab_train.ipynb)
+
 This project trains a conditional diffusion model for image super-resolution
 using the CelebA-HQ resized dataset from Kaggle.
 
@@ -66,6 +68,7 @@ python scripts/sample_sr_diffusion.py \
   --output_dir ./reports/figures \
   --num_steps 50 \
   --scheduler ddim
+```
 
 ## Evaluation (PSNR/SSIM)
 
