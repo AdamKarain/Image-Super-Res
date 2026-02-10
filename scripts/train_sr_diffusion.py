@@ -89,7 +89,7 @@ def main() -> None:
             torch.save(
                 {
                     "model_state": model.state_dict(),
-                    "model_config": model.config.to_dict(),
+                    "model_config": dict(model.config),
                     "image_size": args.image_size,
                     "downscale": args.downscale,
                     "num_timesteps": args.num_timesteps,
@@ -101,7 +101,7 @@ def main() -> None:
     torch.save(
         {
             "model_state": model.state_dict(),
-            "model_config": model.config.to_dict(),
+            "model_config": dict(model.config),
             "image_size": args.image_size,
             "downscale": args.downscale,
             "num_timesteps": args.num_timesteps,
