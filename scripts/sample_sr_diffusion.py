@@ -121,10 +121,17 @@ def main() -> None:
     def denorm(x: torch.Tensor) -> torch.Tensor:
         return (x.clamp(-1, 1) + 1) / 2
 
-    grid = torch.cat([denorm(lr), denorm(sample), denorm(hr)], dim=0)
-    save_path = output_dir / f"{image_name}_sr.png"
-    save_image(grid, save_path, nrow=3)
+    lr_vis = denorm(lr)
+    sr_vis = denorm(sample)
+    hr_vis = denorm(hr)
 
+    # Save each image separately (remove batch dim)
+    save_image(lr_vis[0], output_dir / f"{image_name}_lr.png")
+    save_image(sr_vis[0], output_dir / f"{image_name}_sr.png")
+    save_image(hr_vis[0], output_dir / f"{image_name}_hr.png")
 
+    # Also save a single comparison grid (LR | SR | HR)
+    grid = torch.cat([lr_vis, sr_vis, hr_vis], dim=0)
+    save_image(grid, output_dir / f"{image_name}_grid.png", nrow=3)
 if __name__ == "__main__":
     main()
