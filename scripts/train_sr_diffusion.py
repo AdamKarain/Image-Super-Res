@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--num_timesteps", type=int, default=1000)
     parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--resume_from", type=str, default=None)
     return parser.parse_args()
 
 
@@ -56,9 +57,18 @@ def main() -> None:
     scheduler = DDPMScheduler(num_train_timesteps=args.num_timesteps)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     loss_fn = nn.MSELoss()
-
+    start_epoch = 1
     global_step = 0
-    for epoch in range(1, args.epochs + 1):
+    if args.resume_from is not None:
+        ckpt = torch.load(args.resume_from, map_location="cpu")
+        model.load_state_dict(ckpt["model_state"])
+        optimizer.load_state_dict(ckpt["optimizer_state"])
+        start_epoch = ckpt.get("epoch", 0) + 1
+        global_step = ckpt.get("global_step", 0)
+        print(f"[INFO] Starting from epoch {start_epoch}")
+
+    end_epoch = start_epoch + args.epochs - 1
+    for epoch in range(start_epoch, end_epoch + 1):
         model.train()
         progress = tqdm(dataloader, desc=f"Epoch {epoch}/{args.epochs}")
         for batch in progress:
@@ -88,7 +98,10 @@ def main() -> None:
             ckpt_path = output_dir / f"sr_diffusion_epoch_{epoch}.pt"
             torch.save(
                 {
+                    "epoch": epoch,
+                    "global_step": global_step,
                     "model_state": model.state_dict(),
+                    "optimizer_state": optimizer.state_dict(),
                     "model_config": dict(model.config),
                     "image_size": args.image_size,
                     "downscale": args.downscale,
