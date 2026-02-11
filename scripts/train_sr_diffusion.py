@@ -39,6 +39,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     dataset = CelebAHQDataset(
         root_dir=args.dataset_root,
         image_size=args.image_size,
@@ -57,23 +58,41 @@ def main() -> None:
     scheduler = DDPMScheduler(num_train_timesteps=args.num_timesteps)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     loss_fn = nn.MSELoss()
+
     start_epoch = 1
     global_step = 0
+
+    # ---- Resume (robust to older checkpoints that don't have optimizer/epoch/step) ----
     if args.resume_from is not None:
         ckpt = torch.load(args.resume_from, map_location="cpu")
+
+        # Always try to load model weights
+        if "model_state" not in ckpt:
+            raise KeyError("Checkpoint is missing 'model_state'.")
         model.load_state_dict(ckpt["model_state"])
-        optimizer.load_state_dict(ckpt["optimizer_state"])
+        print(f"[INFO] Loaded model weights from: {args.resume_from}")
+
+        # Load optimizer only if present (older checkpoints won't have it)
+        if "optimizer_state" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer_state"])
+            print("[INFO] Loaded optimizer state from checkpoint.")
+        else:
+            print("[INFO] No optimizer state in checkpoint (starting optimizer fresh).")
+
+        # Resume counters only if present
         start_epoch = ckpt.get("epoch", 0) + 1
         global_step = ckpt.get("global_step", 0)
-        print(f"[INFO] Starting from epoch {start_epoch}")
+        print(f"[INFO] Starting from epoch {start_epoch} (global_step={global_step})")
 
     end_epoch = start_epoch + args.epochs - 1
+
     for epoch in range(start_epoch, end_epoch + 1):
         model.train()
-        progress = tqdm(dataloader, desc=f"Epoch {epoch}/{args.epochs}")
+        progress = tqdm(dataloader, desc=f"Epoch {epoch}/{end_epoch}")
         for batch in progress:
             hr = batch["hr"].to(device)
             lr = batch["lr"].to(device)
+
             noise = torch.randn_like(hr)
             timesteps = torch.randint(
                 0,
@@ -81,6 +100,7 @@ def main() -> None:
                 (hr.shape[0],),
                 device=device,
             ).long()
+
             noisy_hr = scheduler.add_noise(hr, noise, timesteps)
             model_input = torch.cat([noisy_hr, lr], dim=1)
             noise_pred = model(model_input, timesteps).sample
@@ -109,11 +129,15 @@ def main() -> None:
                 },
                 ckpt_path,
             )
+            print(f"[INFO] Saved checkpoint: {ckpt_path}")
 
     latest_path = output_dir / "sr_diffusion_latest.pt"
     torch.save(
         {
+            "epoch": end_epoch,
+            "global_step": global_step,
             "model_state": model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
             "model_config": dict(model.config),
             "image_size": args.image_size,
             "downscale": args.downscale,
@@ -121,6 +145,7 @@ def main() -> None:
         },
         latest_path,
     )
+    print(f"[INFO] Saved latest checkpoint: {latest_path}")
 
 
 if __name__ == "__main__":
