@@ -1,90 +1,51 @@
-# Image Super-Resolution (Diffusion-Based)
+# Diffusion Based Image Super Resolution
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AdamKarain/Image-Super-Res/blob/main/notebooks/colab_train.ipynb)
+[Open in
+Colab](https://colab.research.google.com/github/AdamKarain/Image-Super-Res/blob/main/notebooks/colab_train.ipynb)
 
-This project trains a conditional diffusion model for image super-resolution
-using the CelebA-HQ resized dataset from Kaggle.
+This project implements image super resolution using a conditional
+diffusion model.\
+The goal is to reconstruct a sharp high resolution face image from a
+blurred low resolution version.
+
+We trained the model on the CelebA-HQ 256×256 dataset and evaluated
+reconstruction quality using PSNR and SSIM.
+
+## How the model works (simple explanation)
+
+Instead of directly predicting a high resolution image, the model learns
+to remove noise step-by-step.
+
+During training: 1. We take a real high resolution image 2. Add random
+noise to it 3. Give the model: - the noisy image - the low resolution
+version of the same image 4. The model learns to predict the noise that
+was added
+
+At inference time we start from noise and gradually reconstruct a clean
+high resolution image conditioned on the low resolution input.
 
 ## Dataset
 
-Download the dataset from Kaggle:
-`https://www.kaggle.com/datasets/badasstechie/celebahq-resized-256x256`
+We used:
+https://www.kaggle.com/datasets/badasstechie/celebahq-resized-256x256
 
-Recommended layout:
+Folder structure: data/ celeba_hq_256/ 00000.jpg 00001.jpg
 
-```
-Image-Super-Res/
-  data/
-    celebahq-resized-256x256/
-      00000.png
-      00001.png
-      ...
-```
+We split the dataset automatically inside the dataset loader: 95%
+training 5% validation
 
-If you have the Kaggle CLI configured:
+## Training (Colab)
 
-```
-kaggle datasets download -d badasstechie/celebahq-resized-256x256 -p ./data
-unzip ./data/celebahq-resized-256x256.zip -d ./data/celebahq-resized-256x256
-```
+Training was done on Google Colab GPU and checkpoints were saved to
+Google Drive so training could be resumed.
 
-## Setup
+Example command: python scripts/train_sr_diffusion.py --dataset_root
+./data/celeba_hq_256 --output_dir checkpoints --image_size 256
+--downscale 4 --batch_size 1 --epochs 10
 
-```
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+## Evaluation
 
-## Training
+We measured reconstruction quality using PSNR and SSIM on validation
+images.
 
-```
-python scripts/train_sr_diffusion.py \
-  --dataset_root ./data/celebahq-resized-256x256 \
-  --output_dir ./reports/checkpoints \
-  --image_size 256 \
-  --downscale 4 \
-  --batch_size 8 \
-  --epochs 10
-```
-
-## Sampling / Inference
-
-```
-python scripts/sample_sr_diffusion.py \
-  --checkpoint ./reports/checkpoints/sr_diffusion_latest.pt \
-  --dataset_root ./data/celebahq-resized-256x256 \
-  --output_dir ./reports/figures \
-  --num_steps 50 \
-  --scheduler ddim
-```
-
-To use a specific image:
-
-```
-python scripts/sample_sr_diffusion.py \
-  --checkpoint ./reports/checkpoints/sr_diffusion_latest.pt \
-  --input_image ./data/celebahq-resized-256x256/00010.png \
-  --output_dir ./reports/figures \
-  --num_steps 50 \
-  --scheduler ddim
-```
-
-## Evaluation (PSNR/SSIM)
-
-```
-python scripts/eval_sr_metrics.py \
-  --checkpoint ./reports/checkpoints/sr_diffusion_latest.pt \
-  --dataset_root ./data/celebahq-resized-256x256 \
-  --num_steps 50 \
-  --scheduler ddim \
-  --num_samples 100
-```
-```
-
-## Notes
-
-- The model is conditioned on the low-resolution image by concatenating it with
-  the noisy high-resolution image (6 input channels total).
-- Low-resolution inputs are created by downscaling and then upscaling with
-  bicubic interpolation to match the high-resolution size.
+Example result: PSNR ≈ 18.5 SSIM ≈ 0.63
